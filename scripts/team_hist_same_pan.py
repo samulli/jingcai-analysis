@@ -97,12 +97,17 @@ def find_cache(league):
 
 
 def get_macau_live_val(m):
+    # 2026-10-07 修复（方案B）：原「澳门优先/威廉希尔保底」两个 if 写在同一轮循环里，
+    # 列表首位是威廉希尔时（巴甲 W-M-X 顺序 576/647）第一个元素就命中第二个 if 直接 return，
+    # 澳门那格从未被读到 → 实际是「威廉希尔优先」，约 24% 历史行取错公司。
+    # 改两趟扫描：先全表找澳门，取不到再回退威廉希尔，最后才 oa[0]。
     oa = m.get('odds_asian')
     if not isinstance(oa, list) or not oa:
         return None
     for item in oa:
         if '门' in item.get('name', ''):
             return _match_hc_name(item.get('live_pan', ''))
+    for item in oa:
         if '威' in item.get('name', ''):
             return _match_hc_name(item.get('live_pan', ''))
     return _match_hc_name(oa[0].get('live_pan', ''))
@@ -293,13 +298,15 @@ def get_macau_pan_str(m):
     if not isinstance(oa, list) or not oa:
         return ''
     item = None
-    for x in oa:
+    for x in oa:            # 第一趟：澳门优先（2026-10-07 修复，原同一轮判两家会先命中威廉希尔）
         if '门' in x.get('name', ''):
             item = x
             break
-        if '威' in x.get('name', ''):
-            item = x
-            break
+    if item is None:        # 第二趟：威廉希尔保底
+        for x in oa:
+            if '威' in x.get('name', ''):
+                item = x
+                break
     if item is None:
         item = oa[0]
     init_p = (item.get('init_pan') or '').replace('↑', '').replace('↓', '').strip()
