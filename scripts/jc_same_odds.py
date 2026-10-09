@@ -70,7 +70,7 @@ def same_league(hist_league, cur_league):
 
 
 def fetch_jc_odds(fid):
-    """抓 ouzhi 页 row1=竞彩官方，返回 (init三值, live三值) 或 None"""
+    """抓 ouzhi 页「竞彩官方(官*)」行，返回 (init三值, live三值) 或 None；无官行时返回 None"""
     r = requests.get('https://odds.500.com/fenxi/ouzhi-%s.shtml' % fid, headers=HEADERS, timeout=10)
     r.encoding = 'gbk'
     soup = BeautifulSoup(r.text, 'html.parser')
@@ -81,6 +81,12 @@ def fetch_jc_odds(fid):
                 continue
             if tds[0].get_text().strip() != '1':
                 continue
+            # 2026-10-09 修复：row1 未必是竞彩官方 —— 500 缺「官*」行时 row1=威廉希尔，
+            # 按行号取会把威廉希尔赔率当竞彩初/终盘（静默错值）。公司名在 tds[1]
+            # （class=tb_plgs，title=公司名，如 '官*' / '威***'），必须含「官」，否则视为无官行。
+            _comp = tds[1].get('title') or tds[1].get_text()
+            if '官' not in _comp:
+                return None
             nums = []
             for idx in [3, 4, 5, 6, 7, 8]:
                 s = tds[idx].get_text().strip().replace(chr(160), '')
@@ -117,7 +123,7 @@ def query_match(matchnum, home, away, league, fid, out, bench=None):
     if bench is None:
         jc = fetch_jc_odds(fid)
         if jc is None:
-            p('⚠️ 无法获取竞彩赔率（ouzhi 页解析失败）')
+            p('⚠️ 无法获取竞彩赔率（ouzhi 页无「竞彩官方(官*)」行或解析失败）')
             p()
             return
         bench = jc
